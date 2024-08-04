@@ -20,7 +20,14 @@ fn match_pattern(input_line: &str, pattern: &str) -> Result<bool> {
                 bail!("Unhandled pattern: {}", pattern)
             }
         }
-        _ => bail!("Unhandled pattern: {}", pattern),
+        count => {
+            if pattern.starts_with('[') && pattern.ends_with(']') {
+                let group = pattern.chars().skip(1).take(count - 2);
+                Ok(group.into_iter().any(|c| input_line.contains(c)))
+            } else {
+                bail!("Unhandled pattern: {}", pattern)
+            }
+        }
     }
 }
 
