@@ -22,8 +22,14 @@ fn match_pattern(input_line: &str, pattern: &str) -> Result<bool> {
         }
         count => {
             if pattern.starts_with('[') && pattern.ends_with(']') {
-                let group = pattern.chars().skip(1).take(count - 2);
-                Ok(group.into_iter().any(|c| input_line.contains(c)))
+                let is_negative = pattern.chars().nth(1).expect("no group speciefied") == '^';
+                let skip_chars = if is_negative { 2 } else { 1 };
+                let group = pattern.chars().skip(skip_chars).take(count - 2);
+                Ok(if is_negative {
+                    group.into_iter().all(|c| !input_line.contains(c))
+                } else {
+                    group.into_iter().any(|c| input_line.contains(c))
+                })
             } else {
                 bail!("Unhandled pattern: {}", pattern)
             }
