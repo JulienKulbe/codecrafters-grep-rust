@@ -12,6 +12,7 @@ fn match_pattern(input_line: &str, pattern: &str) -> Result<bool> {
             if pattern.starts_with('\\') {
                 match pattern.chars().nth(1).expect("invalid pattern") {
                     'd' => Ok(input_line.chars().any(|c| c.is_ascii_digit())),
+                    'w' => Ok(input_line.chars().any(|c| c.is_ascii_alphanumeric())),
 
                     _ => bail!("Unhandled pattern: {}", pattern),
                 }
