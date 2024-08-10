@@ -9,6 +9,7 @@ const CHARACTER_CLASS: u8 = b'\\';
 const CHARACTER_ALPHA: u8 = b'w';
 const CHARACTER_DIGIT: u8 = b'd';
 const START_ANCHOR: u8 = b'^';
+const END_ANCHOR: u8 = b'$';
 
 fn match_match_group(input_line: &str, pattern: &str) -> Result<bool> {
     let is_negative = pattern.chars().next().expect("no group speciefied") == '^';
@@ -20,9 +21,25 @@ fn match_match_group(input_line: &str, pattern: &str) -> Result<bool> {
 }
 
 fn match_characters(input_line: &str, pattern: &str) -> Result<bool> {
+    let mut pattern_len = pattern.len();
     let has_start_anchor = pattern.as_bytes()[0] == START_ANCHOR;
+    let has_end_anchor = pattern.as_bytes()[pattern_len - 1] == END_ANCHOR;
+
+    if has_start_anchor {
+        pattern_len -= 1;
+    }
+    if has_end_anchor {
+        pattern_len -= 1;
+    }
+
     if has_start_anchor {
         match_characters_iterate(input_line, &pattern[1..], false)
+    } else if has_end_anchor {
+        match_characters_iterate(
+            &input_line[(input_line.len() - pattern_len)..],
+            &pattern[..pattern.len() - 1],
+            false,
+        )
     } else {
         match_characters_iterate(input_line, pattern, true)
     }
@@ -200,6 +217,18 @@ mod tests {
     #[test]
     fn match_no_start_anchor() {
         let result = match_pattern("slog", "^log");
+        match_result(result, false);
+    }
+
+    #[test]
+    fn match_end_anchor() {
+        let result = match_pattern("dog", "dog$");
+        match_result(result, true);
+    }
+
+    #[test]
+    fn match_no_end_anchor() {
+        let result = match_pattern("dogs", "dog$");
         match_result(result, false);
     }
 }
