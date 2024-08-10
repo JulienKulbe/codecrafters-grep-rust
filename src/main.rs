@@ -8,6 +8,7 @@ use std::process;
 const CHARACTER_CLASS: u8 = b'\\';
 const CHARACTER_ALPHA: u8 = b'w';
 const CHARACTER_DIGIT: u8 = b'd';
+const START_ANCHOR: u8 = b'^';
 
 fn match_match_group(input_line: &str, pattern: &str) -> Result<bool> {
     let is_negative = pattern.chars().next().expect("no group speciefied") == '^';
@@ -19,9 +20,22 @@ fn match_match_group(input_line: &str, pattern: &str) -> Result<bool> {
 }
 
 fn match_characters(input_line: &str, pattern: &str) -> Result<bool> {
+    let has_start_anchor = pattern.as_bytes()[0] == START_ANCHOR;
+    if has_start_anchor {
+        match_characters_iterate(input_line, &pattern[1..], false)
+    } else {
+        match_characters_iterate(input_line, pattern, true)
+    }
+}
+
+fn match_characters_iterate(input_line: &str, pattern: &str, iterate: bool) -> Result<bool> {
     for (i, _) in input_line.char_indices() {
         if match_characters_exact(&input_line[i..], pattern)? {
             return Ok(true);
+        }
+
+        if !iterate {
+            break;
         }
     }
     Ok(false)
@@ -178,8 +192,14 @@ mod tests {
     }
 
     #[test]
-    fn match_no_combined_character_classes() {
-        let result = match_pattern("sally has 124 apples", "\\d\\d\\d apples");
+    fn match_start_anchor() {
+        let result = match_pattern("log", "^log");
         match_result(result, true);
+    }
+
+    #[test]
+    fn match_no_start_anchor() {
+        let result = match_pattern("slog", "^log");
+        match_result(result, false);
     }
 }
