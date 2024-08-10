@@ -37,17 +37,21 @@ fn match_characters_exact(input_line: &str, pattern: &str) -> Result<bool> {
         let found = c == &CHARACTER_CLASS;
 
         if !found {
+            if input_index >= input_line.len() {
+                return Ok(false);
+            }
+
             let is_ok = if found_character_class {
                 match_character_class(input[input_index] as char, *c)?
             } else {
                 match_character(input[input_index], *c)?
             };
 
-            input_index += 1;
-
-            if !is_ok || input_index >= input_line.len() {
+            if !is_ok {
                 return Ok(false);
             }
+
+            input_index += 1;
         }
 
         found_character_class = found;
@@ -175,7 +179,7 @@ mod tests {
 
     #[test]
     fn match_no_combined_character_classes() {
-        let result = match_pattern("sally has 1 dog", "\\d \\w\\w\\ws");
-        match_result(result, false);
+        let result = match_pattern("sally has 124 apples", "\\d\\d\\d apples");
+        match_result(result, true);
     }
 }
