@@ -33,26 +33,21 @@ fn match_characters(input_line: &str, pattern: &str) -> Result<bool> {
     }
 
     if has_start_anchor {
-        match_characters_iterate(input_line, &pattern[1..], false)
+        match_characters_exact(input_line, &pattern[1..])
     } else if has_end_anchor {
-        match_characters_iterate(
+        match_characters_exact(
             &input_line[(input_line.len() - pattern_len)..],
             &pattern[..pattern.len() - 1],
-            false,
         )
     } else {
-        match_characters_iterate(input_line, pattern, true)
+        match_characters_iterate(input_line, pattern)
     }
 }
 
-fn match_characters_iterate(input_line: &str, pattern: &str, iterate: bool) -> Result<bool> {
+fn match_characters_iterate(input_line: &str, pattern: &str) -> Result<bool> {
     for (i, _) in input_line.char_indices() {
         if match_characters_exact(&input_line[i..], pattern)? {
             return Ok(true);
-        }
-
-        if !iterate {
-            break;
         }
     }
     Ok(false)
@@ -229,6 +224,20 @@ mod tests {
     #[test]
     fn match_no_end_anchor() {
         let result = match_pattern("dogs", "dog$");
+        match_result(result, false);
+    }
+
+    #[test]
+    #[ignore]
+    fn match_one_or_more_times() {
+        let result = match_pattern("SaaS", "a+");
+        match_result(result, true);
+    }
+
+    #[test]
+    #[ignore]
+    fn match_no_one_or_more_times() {
+        let result = match_pattern("dog", "a+");
         match_result(result, false);
     }
 }
