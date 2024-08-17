@@ -11,6 +11,54 @@ const CHARACTER_DIGIT: u8 = b'd';
 const START_ANCHOR: u8 = b'^';
 const END_ANCHOR: u8 = b'$';
 
+enum CharacterType {
+    Default,
+    Class(CharacterClass),
+}
+
+enum CharacterClass {
+    Alpha,
+    Digit,
+}
+
+struct MatchResult {
+    is_matching: bool,
+    length: usize,
+}
+
+impl CharacterType {
+    fn get_type(pattern: &[u8]) -> Result<CharacterType> {
+        if pattern[0] == CHARACTER_CLASS {
+            match pattern[1] {
+                CHARACTER_ALPHA => Ok(CharacterType::Class(CharacterClass::Alpha)),
+                CHARACTER_DIGIT => Ok(CharacterType::Class(CharacterClass::Digit)),
+                _ => bail!("Unhandled pattern: \\{}", pattern[1]),
+            }
+        } else {
+            Ok(CharacterType::Default)
+        }
+    }
+
+    fn matches(&self, input: &[u8], pattern: &[u8]) -> Result<MatchResult> {
+        match self {
+            CharacterType::Default => Ok(MatchResult {
+                is_matching: input[0] == pattern[0],
+                length: 1,
+            }),
+            CharacterType::Class(class) => match class {
+                CharacterClass::Alpha => Ok(MatchResult {
+                    is_matching: input[0].is_ascii_alphanumeric(),
+                    length: 2,
+                }),
+                CharacterClass::Digit => Ok(MatchResult {
+                    is_matching: input[0].is_ascii_digit(),
+                    length: 2,
+                }),
+            },
+        }
+    }
+}
+
 fn match_match_group(input_line: &str, pattern: &str) -> Result<bool> {
     let is_negative = pattern.chars().next().expect("no group speciefied") == '^';
     let skip_chars = if is_negative { 1 } else { 0 };
@@ -54,47 +102,27 @@ fn match_characters_iterate(input_line: &str, pattern: &str) -> Result<bool> {
 }
 
 fn match_characters_exact(input_line: &str, pattern: &str) -> Result<bool> {
-    let mut found_character_class = false;
     let mut input_index = 0;
+    let mut pattern_index = 0;
     let input = input_line.as_bytes();
     let pattern = pattern.as_bytes();
 
-    for c in pattern {
-        let found = c == &CHARACTER_CLASS;
+    while pattern_index < pattern.len() {
+        let current_pattern = &pattern[pattern_index..];
+        let current_input = &input[input_index..];
 
-        if !found {
-            if input_index >= input_line.len() {
-                return Ok(false);
-            }
+        let char_type = CharacterType::get_type(current_pattern)?;
+        let result = char_type.matches(current_input, current_pattern)?;
 
-            let is_ok = if found_character_class {
-                match_character_class(input[input_index] as char, *c)?
-            } else {
-                match_character(input[input_index], *c)?
-            };
-
-            if !is_ok {
-                return Ok(false);
-            }
-
-            input_index += 1;
+        if !result.is_matching {
+            return Ok(false);
         }
 
-        found_character_class = found;
+        pattern_index += result.length;
+        input_index += 1;
     }
+
     Ok(true)
-}
-
-fn match_character(input_line: u8, pattern: u8) -> Result<bool> {
-    Ok(input_line == pattern)
-}
-
-fn match_character_class(input_line: char, pattern: u8) -> Result<bool> {
-    match pattern {
-        CHARACTER_ALPHA => Ok(input_line.is_ascii_alphanumeric()),
-        CHARACTER_DIGIT => Ok(input_line.is_ascii_digit()),
-        _ => bail!("Unhandled pattern: {}", pattern),
-    }
 }
 
 fn match_pattern(input_line: &str, pattern: &str) -> Result<bool> {
