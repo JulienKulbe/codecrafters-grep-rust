@@ -40,14 +40,7 @@ struct MatchResult {
 
 impl MatchingType {
     fn get_type(pattern: &[u8]) -> Result<MatchingType> {
-        let character = match pattern[0] {
-            CHARACTER_CLASS => match pattern[1] {
-                CHARACTER_ALPHA => CharacterType::Class(CharacterClass::Alpha),
-                CHARACTER_DIGIT => CharacterType::Class(CharacterClass::Digit),
-                _ => bail!("Unhandled pattern: \\{}", pattern[1]),
-            },
-            _ => CharacterType::Character(pattern[0]),
-        };
+        let character = CharacterType::get_type(pattern)?;
 
         if pattern.len() > character.len() {
             match pattern[character.len()] {
@@ -61,12 +54,14 @@ impl MatchingType {
     }
 
     fn matches(&self, input: &[u8]) -> MatchResult {
-        if input.is_empty() {
-            return MatchResult::error();
-        }
-
         match self {
-            MatchingType::Simple(c) => c.matches(input[0]),
+            MatchingType::Simple(c) => {
+                if input.is_empty() {
+                    MatchResult::error()
+                } else {
+                    c.matches(input[0])
+                }
+            }
             MatchingType::Multiple(c) => {
                 let matches = c.match_count(input);
                 MatchResult {
@@ -75,12 +70,26 @@ impl MatchingType {
                     pattern_chars: matches.pattern_chars + 1,
                 }
             }
-            MatchingType::Optional(c) => todo!(),
+            MatchingType::Optional(c) => {
+                let matches = c.match_count(input);
+                MatchResult {
+                    is_matching: matches.input_chars < 2,
+                    input_chars: matches.input_chars,
+                    pattern_chars: matches.pattern_chars + 1,
+                }
+            }
         }
     }
 }
 
 impl CharacterType {
+    fn get_type(pattern: &[u8]) -> Result<CharacterType> {
+        match pattern[0] {
+            CHARACTER_CLASS => CharacterClass::get_type(pattern[1]),
+            _ => Ok(CharacterType::Character(pattern[0])),
+        }
+    }
+
     fn matches(&self, input: u8) -> MatchResult {
         match self {
             CharacterType::Character(c) => MatchResult {
@@ -109,6 +118,14 @@ impl CharacterType {
 }
 
 impl CharacterClass {
+    fn get_type(pattern: u8) -> Result<CharacterType> {
+        match pattern {
+            CHARACTER_ALPHA => Ok(CharacterType::Class(CharacterClass::Alpha)),
+            CHARACTER_DIGIT => Ok(CharacterType::Class(CharacterClass::Digit)),
+            _ => bail!("Unhandled pattern: \\{}", pattern),
+        }
+    }
+
     fn matches(&self, input: u8) -> MatchResult {
         match self {
             CharacterClass::Alpha => MatchResult {
@@ -352,7 +369,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "reason"]
     fn match_zero_or_one_time() {
         let result = match_pattern("dog", "dogs?");
         match_result(result, true);
