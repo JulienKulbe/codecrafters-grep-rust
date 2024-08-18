@@ -14,7 +14,7 @@ const ONE_OR_MORE: u8 = b'+';
 
 #[derive(Clone)]
 enum CharacterType {
-    Default,
+    Default(u8),
     Class(CharacterClass),
     Multiple(Box<CharacterType>),
 }
@@ -27,7 +27,8 @@ enum CharacterClass {
 
 struct MatchResult {
     is_matching: bool,
-    length: usize,
+    pattern_chars: usize,
+    input_chars: usize,
 }
 
 impl CharacterType {
@@ -53,34 +54,42 @@ impl CharacterType {
                     bail!("Invalid patter, '+' has to follow an other character pattern")
                 }
             }
-            _ => Ok(CharacterType::Default),
+            _ => Ok(CharacterType::Default(pattern[0])),
         }
     }
 
-    fn matches(&self, input: &[u8], pattern: &[u8]) -> Result<MatchResult> {
+    fn matches(&self, input: &[u8]) -> Result<MatchResult> {
         match self {
-            CharacterType::Default => Ok(MatchResult {
-                is_matching: input[0] == pattern[0],
-                length: 1,
+            CharacterType::Default(c) => Ok(MatchResult {
+                is_matching: &input[0] == c,
+                input_chars: 1,
+                pattern_chars: 1,
             }),
             CharacterType::Class(class) => match class {
                 CharacterClass::Alpha => Ok(MatchResult {
                     is_matching: input[0].is_ascii_alphanumeric(),
-                    length: 2,
+                    input_chars: 1,
+                    pattern_chars: 2,
                 }),
                 CharacterClass::Digit => Ok(MatchResult {
                     is_matching: input[0].is_ascii_digit(),
-                    length: 2,
+                    input_chars: 1,
+                    pattern_chars: 2,
                 }),
             },
             CharacterType::Multiple(last) => {
-                let result = last.matches(input, pattern)?;
+                let result = last.matches(input)?;
                 // if the last pattern is matching, we return 0 to check also
                 // the next input for the last one, if the last pattern was not
                 // matching then we go to the next pattern character
                 Ok(MatchResult {
                     is_matching: true,
-                    length: if result.is_matching { 0 } else { 1 },
+                    input_chars: if result.is_matching {
+                        result.input_chars
+                    } else {
+                        0
+                    },
+                    pattern_chars: if result.is_matching { 0 } else { 1 },
                 })
             }
         }
@@ -148,14 +157,14 @@ fn match_characters_exact(input_line: &str, pattern: &str) -> Result<bool> {
         let current_input = &input[input_index..];
 
         let char_type = CharacterType::get_type(current_pattern, last)?;
-        let result = char_type.matches(current_input, current_pattern)?;
+        let result = char_type.matches(current_input)?;
 
         if !result.is_matching {
             return Ok(false);
         }
 
-        pattern_index += result.length;
-        input_index += 1;
+        pattern_index += result.pattern_chars;
+        input_index += result.input_chars;
         last = Some(char_type.last());
     }
 
