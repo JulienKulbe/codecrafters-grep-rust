@@ -10,12 +10,16 @@ const CHARACTER_ALPHA: u8 = b'w';
 const CHARACTER_DIGIT: u8 = b'd';
 const START_ANCHOR: u8 = b'^';
 const END_ANCHOR: u8 = b'$';
+const ONE_OR_MORE: u8 = b'+';
 
+#[derive(Clone)]
 enum CharacterType {
     Default,
     Class(CharacterClass),
+    Multiple(Box<CharacterType>),
 }
 
+#[derive(Copy, Clone)]
 enum CharacterClass {
     Alpha,
     Digit,
@@ -27,15 +31,29 @@ struct MatchResult {
 }
 
 impl CharacterType {
-    fn get_type(pattern: &[u8]) -> Result<CharacterType> {
-        if pattern[0] == CHARACTER_CLASS {
-            match pattern[1] {
+    fn get_type(pattern: &[u8], last: Option<CharacterType>) -> Result<CharacterType> {
+        match pattern[0] {
+            CHARACTER_CLASS => match pattern[1] {
                 CHARACTER_ALPHA => Ok(CharacterType::Class(CharacterClass::Alpha)),
                 CHARACTER_DIGIT => Ok(CharacterType::Class(CharacterClass::Digit)),
+                ONE_OR_MORE => {
+                    if let Some(last) = last {
+                        Ok(CharacterType::Multiple(Box::new(last)))
+                    } else {
+                        bail!("Invalid patter, '+' has to follow an other character pattern")
+                    }
+                }
+
                 _ => bail!("Unhandled pattern: \\{}", pattern[1]),
+            },
+            ONE_OR_MORE => {
+                if let Some(last) = last {
+                    Ok(CharacterType::Multiple(Box::new(last)))
+                } else {
+                    bail!("Invalid patter, '+' has to follow an other character pattern")
+                }
             }
-        } else {
-            Ok(CharacterType::Default)
+            _ => Ok(CharacterType::Default),
         }
     }
 
@@ -55,6 +73,23 @@ impl CharacterType {
                     length: 2,
                 }),
             },
+            CharacterType::Multiple(last) => {
+                let result = last.matches(input, pattern)?;
+                // if the last pattern is matching, we return 0 to check also
+                // the next input for the last one, if the last pattern was not
+                // matching then we go to the next pattern character
+                Ok(MatchResult {
+                    is_matching: true,
+                    length: if result.is_matching { 0 } else { 1 },
+                })
+            }
+        }
+    }
+
+    fn last(self) -> CharacterType {
+        match self {
+            CharacterType::Multiple(last) => last.as_ref().clone(),
+            _ => self,
         }
     }
 }
@@ -106,12 +141,13 @@ fn match_characters_exact(input_line: &str, pattern: &str) -> Result<bool> {
     let mut pattern_index = 0;
     let input = input_line.as_bytes();
     let pattern = pattern.as_bytes();
+    let mut last: Option<CharacterType> = None;
 
     while pattern_index < pattern.len() {
         let current_pattern = &pattern[pattern_index..];
         let current_input = &input[input_index..];
 
-        let char_type = CharacterType::get_type(current_pattern)?;
+        let char_type = CharacterType::get_type(current_pattern, last)?;
         let result = char_type.matches(current_input, current_pattern)?;
 
         if !result.is_matching {
@@ -120,6 +156,7 @@ fn match_characters_exact(input_line: &str, pattern: &str) -> Result<bool> {
 
         pattern_index += result.length;
         input_index += 1;
+        last = Some(char_type.last());
     }
 
     Ok(true)
@@ -256,14 +293,12 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn match_one_or_more_times() {
         let result = match_pattern("SaaS", "a+");
         match_result(result, true);
     }
 
     #[test]
-    #[ignore]
     fn match_no_one_or_more_times() {
         let result = match_pattern("dog", "a+");
         match_result(result, false);
