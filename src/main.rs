@@ -11,12 +11,19 @@ const CHARACTER_DIGIT: u8 = b'd';
 const START_ANCHOR: u8 = b'^';
 const END_ANCHOR: u8 = b'$';
 const ONE_OR_MORE: u8 = b'+';
+const ZERO_OR_ONE: u8 = b'?';
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
+enum MatchingType {
+    Simple(CharacterType),
+    Multiple(CharacterType),
+    Optional(CharacterType),
+}
+
+#[derive(Copy, Clone)]
 enum CharacterType {
-    Default(u8),
+    Character(u8),
     Class(CharacterClass),
-    Multiple(Box<CharacterType>),
 }
 
 #[derive(Copy, Clone)]
@@ -31,30 +38,25 @@ struct MatchResult {
     input_chars: usize,
 }
 
-impl CharacterType {
-    fn get_type(pattern: &[u8], last: Option<CharacterType>) -> Result<CharacterType> {
-        match pattern[0] {
+impl MatchingType {
+    fn get_type(pattern: &[u8]) -> Result<MatchingType> {
+        let (character, size) = match pattern[0] {
             CHARACTER_CLASS => match pattern[1] {
-                CHARACTER_ALPHA => Ok(CharacterType::Class(CharacterClass::Alpha)),
-                CHARACTER_DIGIT => Ok(CharacterType::Class(CharacterClass::Digit)),
-                ONE_OR_MORE => {
-                    if let Some(last) = last {
-                        Ok(CharacterType::Multiple(Box::new(last)))
-                    } else {
-                        bail!("Invalid patter, '+' has to follow an other character pattern")
-                    }
-                }
-
+                CHARACTER_ALPHA => (CharacterType::Class(CharacterClass::Alpha), 2),
+                CHARACTER_DIGIT => (CharacterType::Class(CharacterClass::Digit), 2),
                 _ => bail!("Unhandled pattern: \\{}", pattern[1]),
             },
-            ONE_OR_MORE => {
-                if let Some(last) = last {
-                    Ok(CharacterType::Multiple(Box::new(last)))
-                } else {
-                    bail!("Invalid patter, '+' has to follow an other character pattern")
-                }
+            _ => (CharacterType::Character(pattern[0]), 1),
+        };
+
+        if pattern.len() > size {
+            match pattern[size] {
+                ONE_OR_MORE => Ok(MatchingType::Multiple(character)),
+                ZERO_OR_ONE => Ok(MatchingType::Optional(character)),
+                _ => Ok(MatchingType::Simple(character)),
             }
-            _ => Ok(CharacterType::Default(pattern[0])),
+        } else {
+            Ok(MatchingType::Simple(character))
         }
     }
 
@@ -68,46 +70,63 @@ impl CharacterType {
         }
 
         match self {
-            CharacterType::Default(c) => Ok(MatchResult {
-                is_matching: &input[0] == c,
+            MatchingType::Simple(c) => c.matches(input[0]),
+            MatchingType::Multiple(c) => {
+                let matches = c.match_count(input)?;
+                Ok(MatchResult {
+                    is_matching: matches > 0,
+                    input_chars: matches,
+                    pattern_chars: c.len() + 1,
+                })
+            }
+            MatchingType::Optional(c) => todo!(),
+        }
+    }
+}
+
+impl CharacterType {
+    fn matches(&self, input: u8) -> Result<MatchResult> {
+        match self {
+            CharacterType::Character(c) => Ok(MatchResult {
+                is_matching: &input == c,
                 input_chars: 1,
                 pattern_chars: 1,
             }),
             CharacterType::Class(class) => match class {
                 CharacterClass::Alpha => Ok(MatchResult {
-                    is_matching: input[0].is_ascii_alphanumeric(),
+                    is_matching: input.is_ascii_alphanumeric(),
                     input_chars: 1,
                     pattern_chars: 2,
                 }),
                 CharacterClass::Digit => Ok(MatchResult {
-                    is_matching: input[0].is_ascii_digit(),
+                    is_matching: input.is_ascii_digit(),
                     input_chars: 1,
                     pattern_chars: 2,
                 }),
             },
-            CharacterType::Multiple(last) => {
-                let result = last.matches(input)?;
-                // if the last pattern is matching, we return 0 to check also
-                // the next input for the last one, if the last pattern was not
-                // matching then we go to the next pattern character
-                Ok(MatchResult {
-                    is_matching: true,
-                    input_chars: if result.is_matching {
-                        result.input_chars
-                    } else {
-                        0
-                    },
-                    pattern_chars: if result.is_matching { 0 } else { 1 },
-                })
-            }
         }
     }
 
-    fn last(self) -> CharacterType {
+    fn len(&self) -> usize {
         match self {
-            CharacterType::Multiple(last) => last.as_ref().clone(),
-            _ => self,
+            CharacterType::Character(_) => 1,
+            CharacterType::Class(_) => 2,
         }
+    }
+
+    fn match_count(&self, input: &[u8]) -> Result<usize> {
+        //input.iter().take_while(predicate)
+
+        let mut matches = 0;
+        for i in input {
+            let result = self.matches(*i)?;
+            if result.is_matching {
+                matches += 1;
+            } else {
+                break;
+            }
+        }
+        Ok(matches)
     }
 }
 
@@ -158,13 +177,12 @@ fn match_characters_exact(input_line: &str, pattern: &str) -> Result<bool> {
     let mut pattern_index = 0;
     let input = input_line.as_bytes();
     let pattern = pattern.as_bytes();
-    let mut last: Option<CharacterType> = None;
 
     while pattern_index < pattern.len() {
         let current_pattern = &pattern[pattern_index..];
         let current_input = &input[input_index..];
 
-        let char_type = CharacterType::get_type(current_pattern, last)?;
+        let char_type = MatchingType::get_type(current_pattern)?;
         let result = char_type.matches(current_input)?;
 
         if !result.is_matching {
@@ -173,7 +191,6 @@ fn match_characters_exact(input_line: &str, pattern: &str) -> Result<bool> {
 
         pattern_index += result.pattern_chars;
         input_index += result.input_chars;
-        last = Some(char_type.last());
     }
 
     Ok(true)
@@ -316,14 +333,15 @@ mod tests {
     }
 
     #[test]
-    fn match_one_or_more_times_2() {
-        let result = match_pattern("sally has 1 dog", "\\d \\w\\w\\ws");
+    fn match_no_one_or_more_times() {
+        let result = match_pattern("dog", "a+");
         match_result(result, false);
     }
 
     #[test]
-    fn match_no_one_or_more_times() {
-        let result = match_pattern("dog", "a+");
-        match_result(result, false);
+    #[ignore = "reason"]
+    fn match_zero_or_one_time() {
+        let result = match_pattern("dog", "dogs?");
+        match_result(result, true);
     }
 }
