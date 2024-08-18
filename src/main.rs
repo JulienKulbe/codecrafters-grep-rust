@@ -39,8 +39,12 @@ enum CharacterClass {
     Digit,
 }
 
-struct MatchResult {
-    is_matching: bool,
+enum MatchResult {
+    Positive(PositiveMatchResult),
+    Negative,
+}
+
+struct PositiveMatchResult {
     pattern_chars: usize,
     input_chars: usize,
 }
@@ -64,26 +68,18 @@ impl MatchingType {
         match self {
             MatchingType::Simple(c) => {
                 if input.is_empty() {
-                    MatchResult::error()
+                    MatchResult::Negative
                 } else {
                     c.matches(input[0])
                 }
             }
             MatchingType::Multiple(c) => {
                 let matches = c.match_count(input);
-                MatchResult {
-                    is_matching: matches.input_chars > 0,
-                    input_chars: matches.input_chars,
-                    pattern_chars: matches.pattern_chars + 1,
-                }
+                MatchResult::new(matches > 0, c.len() + 1, matches)
             }
             MatchingType::Optional(c) => {
                 let matches = c.match_count(input);
-                MatchResult {
-                    is_matching: matches.input_chars < 2,
-                    input_chars: matches.input_chars,
-                    pattern_chars: matches.pattern_chars + 1,
-                }
+                MatchResult::new(matches < 2, c.len() + 1, matches)
             }
         }
     }
@@ -99,11 +95,7 @@ impl CharacterType {
 
     fn matches(&self, input: u8) -> MatchResult {
         match self {
-            CharacterType::Character(c) => MatchResult {
-                is_matching: &input == c,
-                input_chars: 1,
-                pattern_chars: 1,
-            },
+            CharacterType::Character(c) => MatchResult::new(&input == c, 1, 1),
             CharacterType::Class(class) => class.matches(input),
         }
     }
@@ -115,12 +107,11 @@ impl CharacterType {
         }
     }
 
-    fn match_count(&self, input: &[u8]) -> MatchResult {
-        let matches = input
+    fn match_count(&self, input: &[u8]) -> usize {
+        input
             .iter()
-            .take_while(|i| self.matches(**i).is_matching)
-            .count();
-        MatchResult::ok(self.len(), matches)
+            .take_while(|i| self.matches(**i).is_matching())
+            .count()
     }
 }
 
@@ -134,35 +125,34 @@ impl CharacterClass {
     }
 
     fn matches(&self, input: u8) -> MatchResult {
-        match self {
-            CharacterClass::Alpha => MatchResult {
-                is_matching: input.is_ascii_alphanumeric(),
-                input_chars: 1,
-                pattern_chars: 2,
-            },
-            CharacterClass::Digit => MatchResult {
-                is_matching: input.is_ascii_digit(),
-                input_chars: 1,
-                pattern_chars: 2,
-            },
-        }
+        let result = match self {
+            CharacterClass::Alpha => input.is_ascii_alphanumeric(),
+            CharacterClass::Digit => input.is_ascii_digit(),
+        };
+        MatchResult::new(result, 2, 1)
     }
 }
 
 impl MatchResult {
-    fn error() -> MatchResult {
-        MatchResult {
-            is_matching: false,
-            pattern_chars: 0,
-            input_chars: 0,
+    fn new(result: bool, pattern_chars: usize, input_chars: usize) -> MatchResult {
+        if result {
+            MatchResult::ok(pattern_chars, input_chars)
+        } else {
+            MatchResult::Negative
         }
     }
 
     fn ok(pattern_chars: usize, input_chars: usize) -> MatchResult {
-        MatchResult {
-            is_matching: true,
+        MatchResult::Positive(PositiveMatchResult {
             pattern_chars,
             input_chars,
+        })
+    }
+
+    fn is_matching(&self) -> bool {
+        match self {
+            MatchResult::Positive(_) => true,
+            MatchResult::Negative => false,
         }
     }
 }
@@ -222,12 +212,13 @@ fn match_characters_exact(input_line: &str, pattern: &str) -> Result<bool> {
         let char_type = MatchingType::get_type(current_pattern)?;
         let result = char_type.matches(current_input);
 
-        if !result.is_matching {
-            return Ok(false);
+        match result {
+            MatchResult::Positive(result) => {
+                pattern_index += result.pattern_chars;
+                input_index += result.input_chars;
+            }
+            MatchResult::Negative => return Ok(false),
         }
-
-        pattern_index += result.pattern_chars;
-        input_index += result.input_chars;
     }
 
     Ok(true)
