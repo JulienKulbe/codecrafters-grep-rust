@@ -62,11 +62,7 @@ impl MatchingType {
 
     fn matches(&self, input: &[u8]) -> MatchResult {
         if input.is_empty() {
-            return MatchResult {
-                is_matching: false,
-                input_chars: 1,
-                pattern_chars: 0,
-            };
+            return MatchResult::error();
         }
 
         match self {
@@ -74,9 +70,9 @@ impl MatchingType {
             MatchingType::Multiple(c) => {
                 let matches = c.match_count(input);
                 MatchResult {
-                    is_matching: matches > 0,
-                    input_chars: matches,
-                    pattern_chars: c.len() + 1,
+                    is_matching: matches.input_chars > 0,
+                    input_chars: matches.input_chars,
+                    pattern_chars: matches.pattern_chars + 1,
                 }
             }
             MatchingType::Optional(c) => todo!(),
@@ -92,18 +88,7 @@ impl CharacterType {
                 input_chars: 1,
                 pattern_chars: 1,
             },
-            CharacterType::Class(class) => match class {
-                CharacterClass::Alpha => MatchResult {
-                    is_matching: input.is_ascii_alphanumeric(),
-                    input_chars: 1,
-                    pattern_chars: 2,
-                },
-                CharacterClass::Digit => MatchResult {
-                    is_matching: input.is_ascii_digit(),
-                    input_chars: 1,
-                    pattern_chars: 2,
-                },
-            },
+            CharacterType::Class(class) => class.matches(input),
         }
     }
 
@@ -114,7 +99,7 @@ impl CharacterType {
         }
     }
 
-    fn match_count(&self, input: &[u8]) -> usize {
+    fn match_count(&self, input: &[u8]) -> MatchResult {
         //input.iter().take_while(predicate)
 
         let mut matches = 0;
@@ -126,7 +111,42 @@ impl CharacterType {
                 break;
             }
         }
-        matches
+        MatchResult::ok(self.len(), matches)
+    }
+}
+
+impl CharacterClass {
+    fn matches(&self, input: u8) -> MatchResult {
+        match self {
+            CharacterClass::Alpha => MatchResult {
+                is_matching: input.is_ascii_alphanumeric(),
+                input_chars: 1,
+                pattern_chars: 2,
+            },
+            CharacterClass::Digit => MatchResult {
+                is_matching: input.is_ascii_digit(),
+                input_chars: 1,
+                pattern_chars: 2,
+            },
+        }
+    }
+}
+
+impl MatchResult {
+    fn error() -> MatchResult {
+        MatchResult {
+            is_matching: false,
+            pattern_chars: 0,
+            input_chars: 0,
+        }
+    }
+
+    fn ok(pattern_chars: usize, input_chars: usize) -> MatchResult {
+        MatchResult {
+            is_matching: true,
+            pattern_chars,
+            input_chars,
+        }
     }
 }
 
