@@ -59,6 +59,14 @@ impl CharacterType {
     }
 
     fn matches(&self, input: &[u8]) -> Result<MatchResult> {
+        if input.is_empty() {
+            return Ok(MatchResult {
+                is_matching: false,
+                input_chars: 1,
+                pattern_chars: 0,
+            });
+        }
+
         match self {
             CharacterType::Default(c) => Ok(MatchResult {
                 is_matching: &input[0] == c,
@@ -305,6 +313,12 @@ mod tests {
     fn match_one_or_more_times() {
         let result = match_pattern("SaaS", "a+");
         match_result(result, true);
+    }
+
+    #[test]
+    fn match_one_or_more_times_2() {
+        let result = match_pattern("sally has 1 dog", "\\d \\w\\w\\ws");
+        match_result(result, false);
     }
 
     #[test]
