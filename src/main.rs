@@ -40,17 +40,17 @@ struct MatchResult {
 
 impl MatchingType {
     fn get_type(pattern: &[u8]) -> Result<MatchingType> {
-        let (character, size) = match pattern[0] {
+        let character = match pattern[0] {
             CHARACTER_CLASS => match pattern[1] {
-                CHARACTER_ALPHA => (CharacterType::Class(CharacterClass::Alpha), 2),
-                CHARACTER_DIGIT => (CharacterType::Class(CharacterClass::Digit), 2),
+                CHARACTER_ALPHA => CharacterType::Class(CharacterClass::Alpha),
+                CHARACTER_DIGIT => CharacterType::Class(CharacterClass::Digit),
                 _ => bail!("Unhandled pattern: \\{}", pattern[1]),
             },
-            _ => (CharacterType::Character(pattern[0]), 1),
+            _ => CharacterType::Character(pattern[0]),
         };
 
-        if pattern.len() > size {
-            match pattern[size] {
+        if pattern.len() > character.len() {
+            match pattern[character.len()] {
                 ONE_OR_MORE => Ok(MatchingType::Multiple(character)),
                 ZERO_OR_ONE => Ok(MatchingType::Optional(character)),
                 _ => Ok(MatchingType::Simple(character)),
@@ -100,17 +100,10 @@ impl CharacterType {
     }
 
     fn match_count(&self, input: &[u8]) -> MatchResult {
-        //input.iter().take_while(predicate)
-
-        let mut matches = 0;
-        for i in input {
-            let result = self.matches(*i);
-            if result.is_matching {
-                matches += 1;
-            } else {
-                break;
-            }
-        }
+        let matches = input
+            .iter()
+            .take_while(|i| self.matches(**i).is_matching)
+            .count();
         MatchResult::ok(self.len(), matches)
     }
 }
