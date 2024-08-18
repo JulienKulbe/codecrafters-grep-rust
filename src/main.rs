@@ -60,24 +60,24 @@ impl MatchingType {
         }
     }
 
-    fn matches(&self, input: &[u8]) -> Result<MatchResult> {
+    fn matches(&self, input: &[u8]) -> MatchResult {
         if input.is_empty() {
-            return Ok(MatchResult {
+            return MatchResult {
                 is_matching: false,
                 input_chars: 1,
                 pattern_chars: 0,
-            });
+            };
         }
 
         match self {
             MatchingType::Simple(c) => c.matches(input[0]),
             MatchingType::Multiple(c) => {
-                let matches = c.match_count(input)?;
-                Ok(MatchResult {
+                let matches = c.match_count(input);
+                MatchResult {
                     is_matching: matches > 0,
                     input_chars: matches,
                     pattern_chars: c.len() + 1,
-                })
+                }
             }
             MatchingType::Optional(c) => todo!(),
         }
@@ -85,24 +85,24 @@ impl MatchingType {
 }
 
 impl CharacterType {
-    fn matches(&self, input: u8) -> Result<MatchResult> {
+    fn matches(&self, input: u8) -> MatchResult {
         match self {
-            CharacterType::Character(c) => Ok(MatchResult {
+            CharacterType::Character(c) => MatchResult {
                 is_matching: &input == c,
                 input_chars: 1,
                 pattern_chars: 1,
-            }),
+            },
             CharacterType::Class(class) => match class {
-                CharacterClass::Alpha => Ok(MatchResult {
+                CharacterClass::Alpha => MatchResult {
                     is_matching: input.is_ascii_alphanumeric(),
                     input_chars: 1,
                     pattern_chars: 2,
-                }),
-                CharacterClass::Digit => Ok(MatchResult {
+                },
+                CharacterClass::Digit => MatchResult {
                     is_matching: input.is_ascii_digit(),
                     input_chars: 1,
                     pattern_chars: 2,
-                }),
+                },
             },
         }
     }
@@ -114,19 +114,19 @@ impl CharacterType {
         }
     }
 
-    fn match_count(&self, input: &[u8]) -> Result<usize> {
+    fn match_count(&self, input: &[u8]) -> usize {
         //input.iter().take_while(predicate)
 
         let mut matches = 0;
         for i in input {
-            let result = self.matches(*i)?;
+            let result = self.matches(*i);
             if result.is_matching {
                 matches += 1;
             } else {
                 break;
             }
         }
-        Ok(matches)
+        matches
     }
 }
 
@@ -183,7 +183,7 @@ fn match_characters_exact(input_line: &str, pattern: &str) -> Result<bool> {
         let current_input = &input[input_index..];
 
         let char_type = MatchingType::get_type(current_pattern)?;
-        let result = char_type.matches(current_input)?;
+        let result = char_type.matches(current_input);
 
         if !result.is_matching {
             return Ok(false);
