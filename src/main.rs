@@ -15,20 +15,27 @@ const ZERO_OR_ONE: u8 = b'?';
 
 #[derive(Copy, Clone)]
 enum MatchingType {
+    /// Simple types are matching exactly one time (no postfix operator)
     Simple(CharacterType),
+    /// Multiple types (+) are matching one or more times
     Multiple(CharacterType),
+    /// Optional types (?) are matching zero or one time
     Optional(CharacterType),
 }
 
 #[derive(Copy, Clone)]
 enum CharacterType {
+    /// Character type is a character that matches exactly that character, e.g. 'a'
     Character(u8),
+    /// Class types are a set of characters that can match the input
     Class(CharacterClass),
 }
 
 #[derive(Copy, Clone)]
 enum CharacterClass {
+    /// Character class that matches all ascii alpha numeric inputs
     Alpha,
+    /// Character class that matches only digits
     Digit,
 }
 
