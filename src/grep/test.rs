@@ -114,4 +114,10 @@ mod tests {
         let result = match_pattern("dog", "dogs?");
         match_result(result, true);
     }
+
+    #[test]
+    fn match_wildcard() {
+        let result = match_pattern("dog", "d.g");
+        match_result(result, true);
+    }
 }

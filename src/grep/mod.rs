@@ -6,6 +6,7 @@ mod test;
 const CHARACTER_CLASS: u8 = b'\\';
 const CHARACTER_ALPHA: u8 = b'w';
 const CHARACTER_DIGIT: u8 = b'd';
+const CHARACTER_WILDCARD: u8 = b'.';
 const START_ANCHOR: u8 = b'^';
 const END_ANCHOR: u8 = b'$';
 const ONE_OR_MORE: u8 = b'+';
@@ -27,6 +28,8 @@ enum CharacterType {
     Character(u8),
     /// Class types are a set of characters that can match the input
     Class(CharacterClass),
+    /// Character class to match any character
+    Wildcard,
 }
 
 #[derive(Copy, Clone)]
@@ -87,6 +90,7 @@ impl CharacterType {
     fn get_type(pattern: &[u8]) -> Result<CharacterType> {
         match pattern[0] {
             CHARACTER_CLASS => CharacterClass::get_type(pattern[1]),
+            CHARACTER_WILDCARD => Ok(CharacterType::Wildcard),
             _ => Ok(CharacterType::Character(pattern[0])),
         }
     }
@@ -95,6 +99,7 @@ impl CharacterType {
         match self {
             CharacterType::Character(c) => MatchResult::new(&input == c, 1, 1),
             CharacterType::Class(class) => class.matches(input),
+            CharacterType::Wildcard => MatchResult::new(true, 1, 1),
         }
     }
 
@@ -102,6 +107,7 @@ impl CharacterType {
         match self {
             CharacterType::Character(_) => 1,
             CharacterType::Class(_) => 2,
+            CharacterType::Wildcard => 1,
         }
     }
 
