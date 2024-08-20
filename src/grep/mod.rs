@@ -28,7 +28,7 @@ enum CharacterType {
     Character(u8),
     /// Class types are a set of characters that can match the input
     Class(CharacterClass),
-    /// Character class to match any character
+    /// Character class to match any character (.)
     Wildcard,
 }
 
